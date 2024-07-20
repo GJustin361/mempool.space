@@ -210,6 +210,8 @@ export interface BlockExtended extends Block {
 }
 
 export interface BlockAudit extends BlockExtended {
+  version: number,
+  unseenTxs?: string[],
   missingTxs: string[],
   addedTxs: string[],
   prioritizedTxs: string[],
