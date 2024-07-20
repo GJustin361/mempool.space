@@ -3,7 +3,7 @@ import * as WebSocket from 'ws';
 import {
   BlockExtended, TransactionExtended, MempoolTransactionExtended, WebsocketResponse,
   OptimizedStatistic, ILoadingIndicators, GbtCandidates, TxTrackingInfo,
-  MempoolBlockDelta, MempoolDelta, MempoolDeltaTxids
+  MempoolDelta, MempoolDeltaTxids
 } from '../mempool.interfaces';
 import blocks from './blocks';
 import memPool from './mempool';
@@ -931,6 +931,8 @@ class WebsocketHandler {
       throw new Error('No WebSocket.Server have been set');
     }
 
+    const blockTransactions = structuredClone(transactions);
+
     this.printLogs();
     await statistics.runStatistics();
 
@@ -940,7 +942,7 @@ class WebsocketHandler {
     let transactionIds: string[] = (memPool.limitGBT) ? Object.keys(candidates?.txs || {}) : Object.keys(_memPool);
 
     const accelerations = Object.values(mempool.getAccelerations());
-    await accelerationRepository.$indexAccelerationsForBlock(block, accelerations, transactions);
+    await accelerationRepository.$indexAccelerationsForBlock(block, accelerations, structuredClone(transactions));
 
     const rbfTransactions = Common.findMinedRbfTransactions(transactions, memPool.getSpendMap());
     memPool.handleMinedRbfTransactions(rbfTransactions);
@@ -964,7 +966,7 @@ class WebsocketHandler {
       }
 
       if (Common.indexingEnabled()) {
-        const { censored, added, prioritized, fresh, sigop, fullrbf, accelerated, score, similarity } = Audit.auditBlock(transactions, projectedBlocks, auditMempool);
+        const { unseen, censored, added, prioritized, fresh, sigop, fullrbf, accelerated, score, similarity } = Audit.auditBlock(block.height, blockTransactions, projectedBlocks, auditMempool);
         const matchRate = Math.round(score * 100 * 100) / 100;
 
         const stripped = projectedBlocks[0]?.transactions ? projectedBlocks[0].transactions : [];
@@ -986,9 +988,11 @@ class WebsocketHandler {
         });
 
         BlocksAuditsRepository.$saveAudit({
+          version: 1,
           time: block.timestamp,
           height: block.height,
           hash: block.id,
+          unseenTxs: unseen,
           addedTxs: added,
           prioritizedTxs: prioritized,
           missingTxs: censored,
